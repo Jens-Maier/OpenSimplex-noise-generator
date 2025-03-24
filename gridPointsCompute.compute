@@ -1,0 +1,167 @@
+#pragma kernel gridPointSimplexNoise
+
+RWStructuredBuffer<int> gradientTable3;
+
+RWStructuredBuffer<float2> gridPoints;
+
+RWStructuredBuffer<float2> gradients;
+
+RWStructuredBuffer<float> noise;
+
+// Constants for skewing the coordinates.
+uniform float cosPosPiOverTwelve;
+uniform float cosNegPiOverTwelve;
+uniform float sinPosPiOverTwelve;
+uniform float sinNegPiOverTwelve;
+uniform float sqrt3;
+uniform float imageSize;
+uniform int scale;
+uniform int resolution;
+uniform int gridSizeX;
+uniform int gridSizeY;
+uniform float gridPoint01x;
+uniform float gridPoint01y;
+uniform float gridPoint10x;
+uniform float gridPoint10y;
+uniform float gridPoint11x;
+uniform float gridPoint11y;
+uniform float F2;
+uniform float G2;
+uniform float squishFactor;
+uniform float skewedGridPoint11x;
+uniform float skewedGridPoint11y;
+
+[numthreads(1, 1, 1)]
+void gridPointSimplexNoise(uint3 id: SV_DispatchThreadID)
+{
+    float point_x = ((float)(id.x)) * imageSize / (float)resolution; // +0.5f -> sample in center of pixel
+    float point_y = ((float)(id.y)) * imageSize / (float)resolution; // imageSize = 10f
+
+    float unsquished_x = point_x;
+    float unsquished_y = point_y / squishFactor;
+    
+    float rotated_x = cosNegPiOverTwelve * unsquished_x - sinNegPiOverTwelve * unsquished_y;
+    float rotated_y = sinNegPiOverTwelve * unsquished_x + cosNegPiOverTwelve * unsquished_y;
+    
+    float skewed_x = rotated_x + F2 * (rotated_x + rotated_y);
+    float skewed_y = rotated_y + F2 * (rotated_x + rotated_y);
+    
+    // Skew the input space to determine the simplex cell.
+    int cellIndexX = (int)(skewed_x / skewedGridPoint11x);
+    int cellIndexY = (int)(skewed_y / skewedGridPoint11y);
+
+    float t_value_0_cell_x = (point_x - gridPoints[cellIndexY * gridSizeX + cellIndexX].x) / skewedGridPoint11x;
+    float t_value_0_cell_y = (point_y - gridPoints[cellIndexY * gridSizeX + cellIndexX].y) / skewedGridPoint11y;
+
+    int i1;
+    int j1; // Offsets for the second and third corners in the simplex.
+    float t_value_1_corner_x;
+    float t_value_1_corner_y;
+    float t_value_2_diagonal_x;
+    float t_value_2_diagonal_y;
+
+    if (t_value_0_cell_x * squishFactor * sqrt3 > t_value_0_cell_y)
+    {
+        // lower triangle
+        i1 = 1; j1 = 0;
+        t_value_1_corner_x = (point_x - gridPoints[cellIndexY * gridSizeX + cellIndexX + 1].x) / skewedGridPoint11x;
+        t_value_1_corner_y = (point_y - gridPoints[cellIndexY * gridSizeX + cellIndexX + 1].y) / skewedGridPoint11y;
+    }
+    else
+    {
+        // upper triangle
+        i1 = 0; j1 = 1;
+        t_value_1_corner_x = (point_x - gridPoints[(cellIndexY + 1) * gridSizeX + cellIndexX].x) / skewedGridPoint11x;
+        t_value_1_corner_y = (point_y - gridPoints[(cellIndexY + 1) * gridSizeX + cellIndexX].y) / skewedGridPoint11y;
+    }
+
+    // diagonal
+    t_value_2_diagonal_x = (point_x - gridPoints[(cellIndexY + 1) * gridSizeX + cellIndexX + 1].x) / skewedGridPoint11x;
+    t_value_2_diagonal_y = (point_y - gridPoints[(cellIndexY + 1) * gridSizeX + cellIndexX + 1].y) / skewedGridPoint11y;
+    
+    // Hash the corner coordinates to get the gradient indices.
+    int ii = cellIndexX & 255;
+    int jj = cellIndexY & 255;
+     
+    // cell gradient, permutationTable is set in generateData()
+    float2 gradient0 = gradients[cellIndexY * gridSizeX + cellIndexX];            // [cellIndexX, cellIndexY]; 
+    float2 gradient1 = gradients[(cellIndexY + j1) * gridSizeX + cellIndexX + i1];// [cellIndexX + i1, cellIndexY + j1];
+    float2 gradient2 = gradients[(cellIndexY + 1) * gridSizeX + cellIndexX + 1];  // [cellIndexX + 1, cellIndexY + 1];
+
+    // uint gradientIndex0 = permutationTable[ii + permutationTable[jj]] % 12; // cell gradient
+    // uint gradientIndex1 = permutationTable[ii + i1 + permutationTable[jj + j1]] % 12; // corner gradient
+    // uint gradientIndex2 = permutationTable[ii + 1 + permutationTable[jj + 1]] % 12; // diagonal gradient 
+    
+    // float modulo: return x - y * floor(x / y); // https://github.com/KdotJPG/OpenSimplex2/blob/master/hlsl/OpenSimplex2.hlsl
+
+    // Compute the contribution from each corner.
+
+    // The square of the distance to the first corner
+    float t0 = 0.5 - t_value_0_cell_x * t_value_0_cell_x - t_value_0_cell_y * t_value_0_cell_y; 
+    float n0 = 0.0;
+    
+    if (t0 < 0) 
+    {
+        n0 = 0.0; // If it's negative, there is no contribution
+    }
+    else
+    {
+        t0 = t0 * t0; // Apply the fade function to the distance
+        float2 b0 = float2(t_value_0_cell_x, t_value_0_cell_y);
+        n0 = t0 * t0 * dot(gradient0, b0); // Calculate the gradient dot product
+    }
+
+    // The square of the distance to the second corner
+    float t1 = 0.5 - t_value_1_corner_x * t_value_1_corner_x - t_value_1_corner_y * t_value_1_corner_y; 
+    float n1 = 0.0;
+    
+    if (t1 < 0)
+    {
+        n1 = 0.0;
+    }
+    else
+    {
+        t1 = t1 * t1; // Apply fade function
+        float2 b1 = float2(t_value_1_corner_x, t_value_1_corner_y);
+        n1 = t1 * t1 * dot(gradient1, b1); // Calculate the gradient dot product
+    }
+
+    // The square of the distance to the third corner
+    float t2 = 0.5 - t_value_2_diagonal_x * t_value_2_diagonal_x - t_value_2_diagonal_y * t_value_2_diagonal_y;
+    float n2 = 0.0;
+
+    if (t2 < 0) 
+    {
+        n2 = 0.0;
+    }
+    else
+    {
+        t2 = t2 * t2; // Apply fade function
+        float2 b2 = float2(t_value_2_diagonal_x, t_value_2_diagonal_y);
+        n2 = t2 * t2 * dot(gradient2, b2); // Calculate the gradient dot product
+    }
+
+    // Combine the results from each corner.
+    noise[id.y * resolution + id.x] = n0 + n1 + n2; // 70f *  -> Scale the result to be in the range [-1, 1]
+
+    // cellIndex FUNKT
+    //noise[id.y * resolution + id.x] = ((float)(cellIndexX + cellIndexY) / (float)(gridSizeX + gridSizeY) - 0.5) / 35.0;  // debug (contrast 35)
+    
+    //noise[id.y * resolution + id.x] = ((unskewedCellX) / 5.0 - 0.5) / 35.0; 
+    //noise[id.y * resolution + id.x] = ((t_value_0_cell_y) / 5.0 - 0.5) / 35.0; // ERROR HERE! should start from 0 each cell!
+
+
+}
+
+
+
+
+
+// -> get individual index of pixel, not of threadGroup!
+
+// Dispatch(x,y,z) -> invokes (x * y * z) Thread Groups identified by SV_GroupID
+
+// SV_DispatchThreadID = SV_GroupID * SV_GroupThreadID
+
+// SV_GroupThreadID: in range (0, 0, 0) to (a-1, b-1, c-1) for numthreads(a, b, c)
+
