@@ -2,7 +2,7 @@
 
 Noise texture generation with octaves in Unity, simplexNoiseGenerator adapted from [jstanden](https://gist.github.com/jstanden/1489447). 
 
-The script creates a noise texture that tiles seamlessly.
+The script grid.cs creates a noise texture that tiles seamlessly.
 
 The new version implements the texure generation in a compute shader. 
 
