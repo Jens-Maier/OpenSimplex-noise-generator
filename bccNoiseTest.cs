@@ -40,6 +40,13 @@ public class bccNoiseTest : MonoBehaviour
     public UnityEngine.Vector3 latticePoint2;
     public UnityEngine.Vector3 latticePoint3;
 
+    public UnityEngine.Vector3 gradient0;
+    public UnityEngine.Vector3 gradient1;
+    public UnityEngine.Vector3 gradient2;
+    public UnityEngine.Vector3 gradient3;
+
+    
+
     public uint[] p;
     public uint[] permutationTable;
     public UnityEngine.Vector3[] gradientTable3;
@@ -55,6 +62,7 @@ public class bccNoiseTest : MonoBehaviour
     public float noiseSampleGizmoRadius;
 
     public Texture2D lutTexture;
+    public Texture2D permutationLutTexture;
 
 
 
@@ -432,17 +440,63 @@ public class bccNoiseTest : MonoBehaviour
         }
 
         // Hash the corner coordinates to get the gradient indices.
-        int ii = cellIndexX & 255;
-        int jj = cellIndexY & 255;
-        int kk = cellIndexZ & 255;
+        int ii = (2 * cellIndexX) & 255;
+        int jj = (2 * cellIndexY) & 255;
+        int kk = (2 * cellIndexZ) & 255;
 
-        uint gradientIndex0 = permutationTable[((ii + 127) & 255) + permutationTable[((jj + 127) & 255) + permutationTable[(kk + 127) & 255]]] % 12;
+        //uint gradientIndex0 = permutationTable[((ii + 127) & 255) + permutationTable[((jj + 127) & 255) + permutationTable[(kk + 127) & 255]]] % 12;
         
-        uint gradientIndex1 = permutationTable[ii + i1 + permutationTable[jj + j1 + permutationTable[kk + k1]]] % 12;
+        //uint gradientIndex1 = permutationTable[ii + i1 + permutationTable[jj + j1 + permutationTable[kk + k1]]] % 12;
         
-        uint gradientIndex2 = permutationTable[ii + i2 + permutationTable[jj + j2 + permutationTable[kk + k2]]] % 12;
+        //uint gradientIndex2 = permutationTable[ii + i2 + permutationTable[jj + j2 + permutationTable[kk + k2]]] % 12;
         
-        uint gradientIndex3 = permutationTable[ii + i3 + permutationTable[jj + j3 + permutationTable[kk + k3]]] % 12;
+        //uint gradientIndex3 = permutationTable[ii + i3 + permutationTable[jj + j3 + permutationTable[kk + k3]]] % 12;
+
+        int getHash(int x, int y, int z)
+        {
+            int hx = x & 255;
+            int hy = y & 255;
+            int hz = z & 255;
+
+            float rZ = lutTexture.GetPixel(hz, 0).r * 256f;
+            float rY = lutTexture.GetPixel((hy + (int)rZ) & 255, 0).r * 256f;
+            float rX = lutTexture.GetPixel((hx + (int)rY) & 255, 0).r * 256f;
+
+            return ((int)rX) % 12;
+        }
+
+        int gradientIndex0 = getHash(ii, jj, kk);
+        int gradientIndex1 = getHash(ii + 2 * i1, jj + 2 * j1, kk + 2 * k1);
+        int gradientIndex2 = getHash(ii + 2 * i2, jj + 2 * j2, kk + 2 * k2);
+        int gradientIndex3 = getHash(ii + 2 * i3, jj + 2 * j3, kk + 2 * k3);
+
+        
+
+        // int gradientIndex0 = (int)(lutTexture.GetPixel((ii + 
+        //                      (int)(lutTexture.GetPixel((jj + 
+        //                      (int)(lutTexture.GetPixel(kk & 255, 
+        //                      0).r * 256f)) & 255, 0).r * 256f)) & 255, 0).r * 256f) % 12;
+        // 
+        // int gradientIndex1 = (int)(lutTexture.GetPixel((ii + 2 * i1 + 
+        //                      (int)(lutTexture.GetPixel((jj + 2 * j1 + 
+        //                      (int)(lutTexture.GetPixel((kk + 2 * k1) & 255, 
+        //                      0).r * 256f)) & 255, 0).r * 256f)) & 255, 0).r * 256f) % 12;
+        // 
+        // int gradientIndex2 = (int)(lutTexture.GetPixel((ii + 2 * i2 + 
+        //                      (int)(lutTexture.GetPixel((jj + 2 * j2 + 
+        //                      (int)(lutTexture.GetPixel((kk + 2 * k2) & 255, 
+        //                      0).r * 256f)) & 255, 0).r * 256f)) & 255, 0).r * 256f) % 12;
+        // 
+        // int gradientIndex3 = (int)(lutTexture.GetPixel((ii + 2 * i3 + 
+        //                      (int)(lutTexture.GetPixel((jj + 2 * j3 + 
+        //                      (int)(lutTexture.GetPixel((kk + 2 * k3) & 255, 
+        //                      0).r * 256f)) & 255, 0).r * 256f)) & 255, 0).r * 256f) % 12;
+        
+
+        gradient0 = gradientTable3[gradientIndex0];
+        gradient1 = gradientTable3[gradientIndex1];
+        gradient2 = gradientTable3[gradientIndex2];
+        gradient3 = gradientTable3[gradientIndex3];
 
         float t0 = 0.6f - UnityEngine.Vector3.Dot(delta, delta);
         float t1 = 0.6f - UnityEngine.Vector3.Dot(delta1, delta1);
@@ -489,20 +543,20 @@ public class bccNoiseTest : MonoBehaviour
             Gizmos.color = new UnityEngine.Color(1f, 0f, 0f);
             foreach (UnityEngine.Vector3 v in latticePointsA)
             {
-                Gizmos.DrawSphere(v, 0.08f);
+                Gizmos.DrawSphere(v, 0.04f);
             }
 
             Gizmos.color = new UnityEngine.Color(0f, 1f, 0f);
             foreach (UnityEngine.Vector3 v in latticePointsB)
             {
-                Gizmos.DrawSphere(v, 0.05f);
+                Gizmos.DrawSphere(v, 0.03f);
             }
         }
 
         
         if (latticePointsA != null && latticePointsB != null)
         {
-
+            Gizmos.color = new UnityEngine.Color(0f, 0f, 1f);
             Gizmos.DrawLine(latticePointsA[cellIndexX, cellIndexY, cellIndexZ], testPos);
             Gizmos.color = new UnityEngine.Color(1f, 0f, 0f);
             if (cellIndexX < sizeX - 1 && cellIndexY < sizeY - 1 && cellIndexZ < sizeZ - 1)
@@ -510,7 +564,7 @@ public class bccNoiseTest : MonoBehaviour
                 Gizmos.DrawLine(latticePointsB[cellIndexX, cellIndexY, cellIndexZ], testPos);
 
                 Gizmos.color = new UnityEngine.Color(0f, 0.8f, 0f);
-                Gizmos.DrawSphere(latticePointsB[cellIndexX, cellIndexY, cellIndexZ] + pyramidOffset, 0.1f);
+                Gizmos.DrawSphere(latticePointsB[cellIndexX, cellIndexY, cellIndexZ] + pyramidOffset, 0.05f);
 
                 Gizmos.DrawLine(latticePointsB[cellIndexX, cellIndexY, cellIndexZ], latticePointsB[cellIndexX, cellIndexY, cellIndexZ] + pyramidOffset);
 
@@ -518,24 +572,33 @@ public class bccNoiseTest : MonoBehaviour
                 Gizmos.DrawLine(latticePoint2, testPos);
                 Gizmos.DrawLine(latticePoint3, testPos);
 
+                Gizmos.color = new UnityEngine.Color(1f, 0f, 0f);
+                Gizmos.DrawLine(latticePoint1, latticePoint1 + gradient1 / 10f);
+                Gizmos.DrawLine(latticePoint2, latticePoint2 + gradient2 / 10f);
+                Gizmos.DrawLine(latticePoint3, latticePoint3 + gradient3 / 10f);
+
+                UnityEngine.Vector3 latticePointA = latticePointsA[cellIndexX, cellIndexY, cellIndexZ] + new UnityEngine.Vector3(0.5f, 0.5f, 0.5f);
+                Gizmos.DrawLine(latticePointA, latticePointA + gradient0 / 10f);
+
+
             }
 
-            Gizmos.color = new UnityEngine.Color(testNoise + 0.5f, testNoise + 0.5f, testNoise + 0.5f);
-            Gizmos.DrawSphere(testPos, 0.1f);
+            //Gizmos.color = new UnityEngine.Color(testNoise + 0.5f, testNoise + 0.5f, testNoise + 0.5f);
+            //Gizmos.DrawSphere(testPos, 0.1f);
 
-            for (int x = 0; x < sizeX * noiseSampleResolution; x++)
-            {
-                for (int y = 0; y < sizeY * noiseSampleResolution; y++)
-                {
-                    for (int z = 0; z < sizeZ * noiseSampleResolution; z++)
-                    {
-                        UnityEngine.Vector3 pos = new UnityEngine.Vector3(x / (float)noiseSampleResolution, y / (float)noiseSampleResolution, z / (float)noiseSampleResolution);
-
-                        Gizmos.color = new UnityEngine.Color(noiseSamples[x, y, z] + 0.5f, noiseSamples[x, y, z] + 0.5f, noiseSamples[x, y, z] + 0.5f);
-                        Gizmos.DrawSphere(pos, 0.07f * noiseSampleGizmoRadius);
-                    }
-                }
-            }
+            //for (int x = 0; x < sizeX * noiseSampleResolution; x++)
+            //{
+            //    for (int y = 0; y < sizeY * noiseSampleResolution; y++)
+            //    {
+            //        for (int z = 0; z < sizeZ * noiseSampleResolution; z++)
+            //        {
+            //            UnityEngine.Vector3 pos = new UnityEngine.Vector3(x / (float)noiseSampleResolution, y / (float)noiseSampleResolution, z / (float)noiseSampleResolution);
+            //
+            //            Gizmos.color = new UnityEngine.Color(noiseSamples[x, y, z] + 0.5f, noiseSamples[x, y, z] + 0.5f, noiseSamples[x, y, z] + 0.5f);
+            //            Gizmos.DrawSphere(pos, 0.07f * noiseSampleGizmoRadius);
+            //        }
+            //    }
+            //}
         }
 
     }
