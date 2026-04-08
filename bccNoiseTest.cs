@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
 using UnityEngine;
+using System.IO;
 
 
 public class bccNoiseTest : MonoBehaviour
@@ -53,6 +54,9 @@ public class bccNoiseTest : MonoBehaviour
     [Range(0f, 1f)]
     public float noiseSampleGizmoRadius;
 
+    public Texture2D lutTexture;
+
+
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -95,6 +99,32 @@ public class bccNoiseTest : MonoBehaviour
                 251,34,242,193,238,210,144,12,191,179,162,241, 81,51,145,235,249,14,239,107,
                 49,192,214, 31,181,199,106,157,184, 84,204,176,115,121,50,45,127, 4,150,254,
                 138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180};
+
+        // Create a 256x1 texture using 32-bit Unsigned Integer format
+
+        float[] pFloat = new float[p.Length];
+        for (int i = 0; i < p.Length; i++)
+        {
+            pFloat[i] = (float)p[i];
+        }
+
+        lutTexture = new Texture2D(512, 1, TextureFormat.R8, false, true);
+        lutTexture.filterMode = FilterMode.Point; // Crucial: No blurring between "indices"
+        lutTexture.wrapMode = TextureWrapMode.Clamp;
+        Color32[] colors = new Color32[512];
+
+        for (int i = 0; i < 256; i++)
+        {
+            colors[i] = new Color32((byte)p[i], 0, 0, 255);
+            colors[i + 256] = new Color32((byte)p[i], 0, 0, 255);
+        }
+        lutTexture.SetPixels32(colors);
+        lutTexture.Apply();
+
+        byte[] bytes = lutTexture.EncodeToPNG();
+        File.WriteAllBytes(Application.dataPath + "/permutationLUT.png", bytes);
+
+
 
         permutationTable = new uint[512];
         for(int i=0; i<512; i++) 
