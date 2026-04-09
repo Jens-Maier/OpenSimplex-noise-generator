@@ -39,10 +39,7 @@ float3 random3(float3 c)
 }
 
 
-
-
-
-void simplexNoise_float(float3 position, out float4 noise)
+float simplexNoise(float3 position)
 {
     float3 s = floor(position + dot(position, float3(F3, F3, F3)));
     float3 x = position - s + dot(s, float3(G3, G3, G3));
@@ -76,6 +73,20 @@ void simplexNoise_float(float3 position, out float4 noise)
 
     float n = dot(d, float4(52.0, 52.0, 52.0, 52.0));
 
-    noise = float4(n * 0.5 + 0.5, n * 0.5 + 0.5, n * 0.5 + 0.5, 1);
+    return n * 0.5 + 0.5;
+}
 
+
+void simplexNoise_float(float3 position, float octaves, float multiplier, float lacunarity, float persistence , out float4 noise)
+{
+    float3 v3 = position / multiplier;
+    float val = 0.0;
+    float amplitude = 1.0;
+    for (int n = 0; n < octaves; n++)
+    {
+        val += simplexNoise(v3) * amplitude;
+        v3 *= lacunarity;
+        amplitude *= persistence;
+    }
+    noise = val;
 }
